@@ -1652,7 +1652,7 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
         from pybird.resum import Resum
         from pybird.projection import Projection
         eft_basis = self.options.get('eft_basis', None)
-        if eft_basis in [None, 'velocileptors']: eft_basis = 'eftoflss'
+        if eft_basis in [None, 'velocileptors', 'desi-dr2']: eft_basis = 'eftoflss'
         # nd used by combine_bias_terms_poles only
         #self.co = Common(Nl=len(self.ells), kmin=self.k[0] * 0.8, kmax=self.k[-1] * 1.2, km=self.options['km'], kr=self.options['kr'], nd=1e-4,
         # No way to go below kmin = 1e-3 h/Mpc (nan)
@@ -1804,13 +1804,13 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
     - https://arxiv.org/abs/2003.07956
     - https://github.com/pierrexyz/pybird
     """
-    _default_options = dict(with_nnlo_counterterm=False, with_stoch=True, eft_basis=None, freedom=None, shotnoise=1e4)
-    _deterministic_bias_params = ['b1', 'b2', 'b3', 'b4', 'bs', 'b2p4', 'b2m4', 'b2t', 'b2g', 'b3g', 'cct', 'cr1', 'cr2', 'cr4', 'cr6', 'c0', 'c2', 'c4', 'ct']
-    _stochastic_bias_params = ['ce0', 'ce1', 'ce2']
+    _default_options = dict(with_nnlo_counterterm=False, with_stoch=True, eft_basis=None, freedom=None, shotnoise=1e4, b1ref=None, fsat=None, sigv=None)
+    _deterministic_bias_params = ['b1', 'b2', 'b3', 'b4', 'b2d', 'b2k', 'b3td', 'bs', 'b2p4', 'b2m4', 'b2t', 'b2g', 'b3g', 'cct', 'cr1', 'cr2', 'cr4', 'cr6', 'c0', 'c2', 'c4', 'ct', 'alpha0p', 'alpha2p', 'alpha4p']
+    _stochastic_bias_params = ['ce0', 'ce1', 'ce2', 'sn0p', 'sn0_2p', 'sn2p']
     _with_cross = True
 
     @classmethod
-    def _params(cls, params, freedom=None, tracers=None):
+    def _params(cls, params, freedom=None, tracers=None, b1ref=None):
         fix = []
         if freedom in ['min', 'max']:
             for param in params.select(basename=['b1']):
@@ -1825,17 +1825,66 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
             fix += ['ce1']
         if freedom == 'min':
             fix += ['b2', 'b3', 'ce1']
+        params = BaseTracerTwoPointTheory._params.__func__(cls, params, tracers=tracers)
+        if isinstance(freedom, str) and 'desi-dr2' in freedom:
+            fix += ['sn0_2p']  # k^2 stochastic term is not used in desi-dr2 analysis
+            if b1ref is None:
+                raise ValueError('please provide a reference linear bias `b1ref` when using desi-dr2-[min/int/max] freedom')
+            if not utils.is_sequence(b1ref):
+                b1ref = (b1ref, b1ref)
+            if not tracers or isinstance(tracers, str):
+                namespaces = [None]
+            else:
+                namespaces = list(tracers)[:2]
+            for param in params.select(basename=['b1']):
+                param.update(prior=dict(limits=[0.1, 8.]))
+            for param in params.select(basename=['b2d']):
+                param.update(prior=dict(dist='norm', loc=0, scale=20))
+            if freedom in ('desi-dr2-max', 'desi-dr2-int'):
+                for namespace, _b1ref in zip(namespaces, b1ref):
+                    extra = {} if namespace is None else dict(namespace=namespace)
+                    for param in params.select(basename=['b2k'], **extra):
+                        param.update(prior=dict(dist='norm', loc=-2. / 7. * (_b1ref - 1.), scale=20))
+                    for param in params.select(basename=['b3td'], **extra):
+                        param.update(prior=dict(dist='norm', loc=23. / 42. * (_b1ref - 1.), scale=80))
+                for param in params.select(basename=['alpha0p', 'alpha2p', 'alpha4p']):
+                    param.update(prior=dict(dist='norm', loc=0., scale=500))
+                for param in params.select(basename=['sn0p', 'sn0_2p']):
+                    param.update(prior=dict(dist='norm', loc=0., scale=20))
+                for param in params.select(basename=['sn2p']):
+                    param.update(prior=dict(dist='norm', loc=0., scale=50))
+                if freedom == 'desi-dr2-int':
+                    fix += ['b3td']
+            elif freedom == 'desi-dr2-min':
+                for param in params.select(basename=['alpha0p', 'alpha2p', 'alpha4p']):
+                    param.update(prior=dict(dist='norm', loc=0., scale=50))
+                for param in params.select(basename=['sn0p', 'sn0_2p']):
+                    param.update(prior=dict(dist='norm', loc=0., scale=2))
+                for param in params.select(basename=['sn2p']):
+                    param.update(prior=dict(dist='norm', loc=0., scale=5))
+                fix += ['b2k', 'b3td']
+            else:
+                raise NotImplementedError(freedom)
         for param in params.select(basename=fix):
             param.update(value=0., fixed=True)
-        return BaseTracerTwoPointTheory._params.__func__(cls, params, tracers=tracers)
+        return params
 
     def set_params(self):
         freedom = self.options.get('freedom', None)
         if self.options['eft_basis'] is None:
             self.options['eft_basis'] = 'eftoflss' if freedom == 'min' else 'westcoast'
-        allowed_eft_basis = ['eftoflss', 'velocileptors', 'eastcoast', 'westcoast']
+        allowed_eft_basis = ['eftoflss', 'desi-dr2', 'velocileptors', 'eastcoast', 'westcoast']
         if self.options['eft_basis'] not in allowed_eft_basis:
             raise ValueError('eft_basis must be one of {}'.format(allowed_eft_basis))
+        self.fsat = 1.
+        if self.options['eft_basis'] == 'desi-dr2':
+            settings = get_physical_stochastic_settings()
+            for name, value in settings.items():
+                if self.options[name] is None:
+                    self.options[name] = value
+            if self.mpicomm.rank == 0:
+                self.log_debug('Using fsat, sigv = {:.3f}, {:.3f}'.format(self.options['fsat'], self.options['sigv']))
+            self.fsat = self.options['fsat']
         if freedom == 'min' and self.options['eft_basis'] != 'eftoflss':
             raise ValueError('freedom = "min" only defined in eft_basis = "eftoflss"')
         # in pybird:
@@ -1843,6 +1892,8 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
         # - eastcoast: b2t, b2g, b3g are bt2, bG2, bGamma3
         if self.options['eft_basis'] == 'eftoflss':
             self.required_bias_params = ['b1', 'b2', 'b3', 'b4']
+        if self.options['eft_basis'] == 'desi-dr2':
+            self.required_bias_params = ['b1', 'b2d', 'b2k', 'b3td']
         if self.options['eft_basis'] == 'velocileptors':
             self.required_bias_params = ['b1', 'b2', 'bs', 'b3']
         if self.options['eft_basis'] == 'westcoast':
@@ -1854,24 +1905,31 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
         if self.options['eft_basis'] in ['eftoflss', 'velocileptors', 'westcoast']:
             self.required_bias_params += ['cct', 'cr1', 'cr2']
             if self.options['with_nnlo_counterterm']: self.required_bias_params += ['cr4', 'cr6']
+        elif self.options['eft_basis'] == 'desi-dr2':
+            self.required_bias_params += ['alpha0p', 'alpha2p', 'alpha4p']
+            if self.options['with_nnlo_counterterm']:
+                raise NotImplementedError('nnlo counterterm not implemented yet in desi-dr2 eft_basis')
         else:
             self.required_bias_params += ['c0', 'c2', 'c4']
             if self.options['with_nnlo_counterterm']: self.required_bias_params += ['ct']
         # now shotnoise
         if self.options['with_stoch']:
-            self.required_bias_params += ['ce0', 'ce1', 'ce2']
+            if self.options['eft_basis'] == 'desi-dr2':
+                self.required_bias_params += ['sn0p', 'sn0_2p', 'sn2p']
+            else:
+                self.required_bias_params += ['ce0', 'ce1', 'ce2']
         default_values = {'b1': 1.6}
         self.required_bias_params = {name: default_values.get(name, 0.) for name in self.required_bias_params}
         self.deterministic_bias_params = [param for param in self._deterministic_bias_params if param in self.required_bias_params]
         self.stochastic_bias_params = [param for param in self._stochastic_bias_params if param in self.required_bias_params]
         BaseTracerPowerSpectrumMultipoles.set_params(self, pt_params=[])  # not super, for PyBirdTracerCorrelationFunctionMultipoles
         fix = []
-        if 4 not in self.ells: fix += ['cr2', 'c4']
-        if 2 not in self.ells: fix += ['cr1', 'c2', 'ce2']
+        if 4 not in self.ells: fix += ['cr2', 'c4', 'alpha4p']
+        if 2 not in self.ells: fix += ['cr1', 'c2', 'alpha2p', 'ce2', 'sn2p']
         for param in self.init.params.select(basename=fix):
             param.update(value=0., fixed=True)
 
-    def transform_params(self, **params):
+    def transform_params(self, km=None, kr=None, **params):
         if self.options['eft_basis'] == 'westcoast':
             b2p4, b2m4 = [params.pop(name) for name in ['b2p4', 'b2m4']]
             params['b2'] = (b2p4 + b2m4) / 2.**0.5
@@ -1887,14 +1945,42 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
             params['b2'] = 1. + 7. / 2. * bsv
             params['b3'] = 7. / 441. * (42. - 145. * b1v - 21. * b3v + 630. * bsv)
             params['b4'] = -7. / 5. * (params['b1'] - 1.) - 7. / 10. * b2v
+        elif self.options['eft_basis'] == 'desi-dr2':
+            # b2d, b2k, b3td are b_2, b_K^2, b_td defined in https://arxiv.org/abs/1611.09787
+            b1, b2d, b2k, b3td = [params.pop(name) for name in ['b1', 'b2d', 'b2k', 'b3td']]
+            if self.options['freedom'] == 'desi-dr2-min':
+                b2k = -2. / 7. * (b1 - 1.)
+                b3td = 23. / 42. * (b1 - 1.)
+            params['b1'] = b1
+            params['b2'] = b1 + 7. / 2. * b2k
+            params['b3'] = b1 + 15. * b2k + 6. * b3td
+            params['b4'] = 1. / 2. * b2d - 17. / 6. * b2k
+            # 2 * cct / km**2 = b1 * alpha0p, 2 * cr1 / kr**2 = f * alpha2p, 2 * cr2 / kr**2 = f* alpha4p
+            alpha0p, alpha2p, alpha4p = [params.pop(name) for name in ['alpha0p', 'alpha2p', 'alpha4p']]
+            f = self.template.f
+            params['cct'] = km**2 / 2. * alpha0p * b1
+            params['cr1'] = kr**2 / 2. * alpha2p * f
+            params['cr2'] = kr**2 / 2. * alpha4p * f
         if self.options['freedom'] == 'min':
             params['b2'] = 1.
             params['b3'] = (294. - 1015. * (params['b1'] - 1.)) / 441.
         return params
 
+    def transform_stochastic_terms(self, **params):
+        if self.options['eft_basis'] == 'desi-dr2':
+            km = self.pt.km
+            sn0p, sn0_2p, sn2p = [params.pop(name) for name in ['sn0p', 'sn0_2p', 'sn2p']]
+            sn2p = sn2p * self.fsat * self.options['sigv']**2
+            params['ce0'] = sn0p
+            params['ce1'] = (sn0_2p + 1. / 3. * sn2p) * km[0] * km[1]
+            params['ce2'] = 2. / 3. * sn2p * km[0] * km[1]
+        return params
+
     def calculate(self, **params):
         super(PyBirdTracerPowerSpectrumMultipoles, self).calculate()
         params = self.pack_input_bias_params(params)
+        params = self.transform_stochastic_terms(**params)
+        (kmX, kmY), (krX, krY) = self.pt.km, self.pt.kr
         if self.is_cross_correlation():
             paramsX, paramsY = {}, {}
             for k, v in params.items():
@@ -1902,12 +1988,11 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
                     paramsX[k], paramsY[k] = v
                 else:
                     paramsX[k] = paramsY[k] = v  # stochastic terms
-            paramsX, paramsY = self.transform_params(**paramsX), self.transform_params(**paramsY)
+            paramsX, paramsY = self.transform_params(km=kmX, kr=krX, **paramsX), self.transform_params(km=kmY, kr=krY, **paramsY)
             self.power = self.pt.combine_bias_terms_poles_for_cross(paramsX, paramsY, nd=self.nd, km=self.pt.km, kr=self.pt.kr)
         else:
             params = {k: v[0] if isinstance(v, tuple) else v for k, v in params.items()}
-            self.power = self.pt.combine_bias_terms_poles(self.transform_params(**params), nd=self.nd)
-
+            self.power = self.pt.combine_bias_terms_poles(self.transform_params(km=kmX, kr=krX, **params), nd=self.nd)
 
 class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
 
@@ -1924,10 +2009,12 @@ class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
         from pybird.resum import Resum
         from pybird.projection import Projection
         eft_basis = self.options.get('eft_basis', None)
-        if eft_basis in [None, 'velocileptors']: eft_basis = 'eftoflss'
+        if eft_basis in [None, 'velocileptors', 'desi-dr2']: eft_basis = 'eftoflss'
         # nd used by combine_bias_terms_poles only
         for name in ['km', 'kr']:
             self.options[name] = self.options[name] if utils.is_sequence(self.options[name]) else (self.options[name],) * 2
+        self.km = self.options['km']
+        self.kr = self.options['kr']
         self.co = Common(Nl=len(self.ells), kmin=1e-3, kmax=0.25, km=min(self.options['km']), kr=min(self.options['kr']), nd=1e-4,
                          eft_basis=eft_basis, halohalo=True, with_cf=True,
                          with_time=True, accboost=float(self.options['accboost']), optiresum=self.options['with_resum'] == 'opti', with_uvmatch=False,
@@ -2016,7 +2103,7 @@ class PyBirdTracerCorrelationFunctionMultipoles(BaseTracerCorrelationFunctionMul
     **kwargs : dict
         Pybird options, defaults to: ``with_nnlo_higher_derivative=False, with_nnlo_counterterm=False, with_stoch=False, with_resum='full'``.
     """
-    _default_options = dict(with_nnlo_counterterm=False, with_stoch=False, eft_basis=None, freedom=None)
+    _default_options = dict(with_nnlo_counterterm=False, with_stoch=False, eft_basis=None, freedom=None, b1ref=None, fsat=None, sigv=None)
 
     _params = classmethod(PyBirdTracerPowerSpectrumMultipoles._params.__func__)
 
@@ -2029,9 +2116,10 @@ class PyBirdTracerCorrelationFunctionMultipoles(BaseTracerCorrelationFunctionMul
 
     def calculate(self, **params):
         super(PyBirdTracerCorrelationFunctionMultipoles, self).calculate()
+        (kmX, kmY), (krX, krY) = self.pt.km, self.pt.kr
         params = self.pack_input_bias_params(params)
         params = {name: value[0] if isinstance(value, tuple) else value for name, value in params.items()}
-        self.corr = self.pt.combine_bias_terms_poles(self.transform_params(**params))
+        self.corr = self.pt.combine_bias_terms_poles(self.transform_params(km=kmX, kr=krX, **params))
 
 
 class Namespace(object):

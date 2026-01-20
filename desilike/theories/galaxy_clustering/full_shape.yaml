@@ -956,6 +956,85 @@ params:
       loc: 0.
       scale: 1.
     latex: c_{e, 2}
+  # desi-dr2
+  b2d:
+    prior:
+      limits: [-15., 15.]
+    ref:
+      limits: [-1., 1.]
+    latex: b_{2}
+  b2k:
+    prior:
+      limits: [-15., 15.]
+    ref:
+      limits: [-1., 1.]
+    latex: 'b_{K^2}'
+  b3td:
+    prior:
+      limits: [-15., 15.]
+    ref:
+      limits: [-1., 1.]
+    latex: 'b_\mathrm{td}'
+  alpha0p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 30.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 1.
+    latex: \tilde{\alpha}_{0}
+  alpha2p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 50.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 1.
+    latex: \tilde{\alpha}_{2}
+  alpha4p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 50.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 1.
+    latex: \tilde{\alpha}_{4}
+  sn0p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 20.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 0.1
+    latex: s_{n, 0}
+  sn0_2p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 20.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 0.1
+    latex: s_{n, 0, 2}
+  sn2p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 50.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 0.1
+    latex: s_{n, 2}
   # velocileptors
   bs:
     prior:
@@ -1077,6 +1156,55 @@ params:
       loc: 0.
       scale: 10.
     latex: c_{r, 6}
+  # desi-dr2
+  b2d:
+    prior:
+      limits: [-15., 15.]
+    ref:
+      limits: [-1., 1.]
+    latex: b_{2}
+  b2k:
+    prior:
+      limits: [-15., 15.]
+    ref:
+      limits: [-1., 1.]
+    latex: 'b_{K^2}'
+  b3td:
+    prior:
+      limits: [-15., 15.]
+    ref:
+      limits: [-1., 1.]
+    latex: 'b_\mathrm{td}'
+  alpha0p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 30.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 1.
+    latex: \tilde{\alpha}_{0}
+  alpha2p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 50.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 1.
+    latex: \tilde{\alpha}_{2}
+  alpha4p:
+    prior:
+      dist: norm
+      loc: 0.
+      scale: 50.
+    ref:
+      dist: norm
+      loc: 0.
+      scale: 1.
+    latex: \tilde{\alpha}_{4}
   # velocileptors
   bs:
     prior:
