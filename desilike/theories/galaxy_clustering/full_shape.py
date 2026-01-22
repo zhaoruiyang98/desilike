@@ -1804,7 +1804,7 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
     - https://arxiv.org/abs/2003.07956
     - https://github.com/pierrexyz/pybird
     """
-    _default_options = dict(with_nnlo_counterterm=False, with_stoch=True, eft_basis=None, freedom=None, shotnoise=1e4, b1ref=None, fsat=None, sigv=None)
+    _default_options = dict(with_nnlo_counterterm=False, with_stoch=True, eft_basis=None, freedom=None, shotnoise=1e4, b1ref=None, fsat=None, sigv=None, prior_basis=None)
     _deterministic_bias_params = ['b1', 'b2', 'b3', 'b4', 'b2d', 'b2k', 'b3td', 'bs', 'b2p4', 'b2m4', 'b2t', 'b2g', 'b3g', 'cct', 'cr1', 'cr2', 'cr4', 'cr6', 'c0', 'c2', 'c4', 'ct', 'alpha0p', 'alpha2p', 'alpha4p']
     _stochastic_bias_params = ['ce0', 'ce1', 'ce2', 'sn0p', 'sn0_2p', 'sn2p']
     _with_cross = True
@@ -1976,9 +1976,39 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
             params['ce2'] = 2. / 3. * sn2p * km[0] * km[1]
         return params
 
+    def apply_desi_dr2_reparameterization(self, params, direction='backward'):
+        qpar, qper = self.template.qpar, self.template.qper
+        dsigma8 = self.template.sigma8 / self.template.sigma8_fid
+
+        Aap, S = 1. / (qpar * qper**2), dsigma8
+        if direction == 'backward':
+            Aap, S = 1. / Aap, 1. / S
+        Aap_sqrt, S2 = jnp.sqrt(Aap), S * S
+        S4 = S2 * S2
+
+        (b1X, b1Y), (b2dX, b2dY), (b2kX, b2kY), (b3tdX, b3tdY), (alpha0pX, alpha0pY), (alpha2pX, alpha2pY), (alpha4pX, alpha4pY) = [
+            params.pop(name) for name in ['b1', 'b2d', 'b2k', 'b3td', 'alpha0p', 'alpha2p', 'alpha4p']
+        ]
+        sn0p, sn2p, sn4p = [params.pop(param, 0.0) for param in ['sn0p', 'sn2p', 'sn4p']]
+        params['b1'] = (b1X * S * Aap_sqrt, b1Y * S * Aap_sqrt)
+        params['b2d'] = (b2dX * S2 * Aap_sqrt, b2dY * S2 * Aap_sqrt)
+        params['b2k'] = (b2kX * S2 * Aap_sqrt, b2kY * S2 * Aap_sqrt)
+        params['b3td'] = (b3tdX * S4 * Aap, b3tdY * S4 * Aap)
+        params['alpha0p'] = (alpha0pX * Aap * S2, alpha0pY * Aap * S2)
+        params['alpha2p'] = (alpha2pX * Aap * S2, alpha2pY * Aap * S2)
+        params['alpha4p'] = (alpha4pX * Aap * S2, alpha4pY * Aap * S2)
+        params['sn0p'] = sn0p * Aap
+        params['sn2p'] = sn2p * Aap
+        params['sn4p'] = sn4p * Aap
+        return params
+
     def calculate(self, **params):
         super(PyBirdTracerPowerSpectrumMultipoles, self).calculate()
         params = self.pack_input_bias_params(params)
+        if self.options['prior_basis'] == 'desi-dr2':
+            self.log_debug(f"before reparameterization: {params}")
+            params = self.apply_desi_dr2_reparameterization(params)
+            self.log_debug(f"after reparameterization: {params}")
         params = self.transform_stochastic_terms(**params)
         (kmX, kmY), (krX, krY) = self.pt.km, self.pt.kr
         if self.is_cross_correlation():
@@ -2103,13 +2133,14 @@ class PyBirdTracerCorrelationFunctionMultipoles(BaseTracerCorrelationFunctionMul
     **kwargs : dict
         Pybird options, defaults to: ``with_nnlo_higher_derivative=False, with_nnlo_counterterm=False, with_stoch=False, with_resum='full'``.
     """
-    _default_options = dict(with_nnlo_counterterm=False, with_stoch=False, eft_basis=None, freedom=None, b1ref=None, fsat=None, sigv=None)
+    _default_options = dict(with_nnlo_counterterm=False, with_stoch=False, eft_basis=None, freedom=None, b1ref=None, fsat=None, sigv=None, prior_basis=None)
 
     _params = classmethod(PyBirdTracerPowerSpectrumMultipoles._params.__func__)
 
     set_params = PyBirdTracerPowerSpectrumMultipoles.set_params
 
     transform_params = PyBirdTracerPowerSpectrumMultipoles.transform_params
+    apply_desi_dr2_reparameterization = PyBirdTracerPowerSpectrumMultipoles.apply_desi_dr2_reparameterization
 
     _deterministic_bias_params = PyBirdTracerPowerSpectrumMultipoles._deterministic_bias_params
     _stochastic_bias_params = []
@@ -2118,6 +2149,8 @@ class PyBirdTracerCorrelationFunctionMultipoles(BaseTracerCorrelationFunctionMul
         super(PyBirdTracerCorrelationFunctionMultipoles, self).calculate()
         (kmX, kmY), (krX, krY) = self.pt.km, self.pt.kr
         params = self.pack_input_bias_params(params)
+        if self.options['prior_basis'] == 'desi-dr2':
+            params = self.apply_desi_dr2_reparameterization(params)
         params = {name: value[0] if isinstance(value, tuple) else value for name, value in params.items()}
         self.corr = self.pt.combine_bias_terms_poles(self.transform_params(km=kmX, kr=krX, **params))
 
