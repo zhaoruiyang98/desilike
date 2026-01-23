@@ -1699,6 +1699,10 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
         if self.options['with_ap']:
             self.projection.AP(self.pt, q=(self.template.qper, self.template.qpar))
         self.projection.xdata(self.pt)
+        self.qper, self.qpar = self.template.qper, self.template.qpar
+        self.fsigma8 = self.template.fsigma8
+        self.sigma8 = self.template.sigma8
+        self.sigma8_fid = self.template.sigma8_fid
 
     def combine_bias_terms_poles(self, params, nd=1e-4):
         from pybird import bird
@@ -1754,7 +1758,7 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
 
     def __getstate__(self):
         state = {}
-        for name in ['k', 'z', 'ells', 'km', 'kr']:
+        for name in ['k', 'z', 'ells', 'km', 'kr', 'qpar', 'qper', 'fsigma8', 'sigma8', 'sigma8_fid']:
             if hasattr(self, name):
                 state[name] = getattr(self, name)
         for name in self._pt_attrs:
@@ -1763,7 +1767,7 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
         return state
 
     def __setstate__(self, state):
-        for name in ['k', 'z', 'ells', 'km', 'kr']:
+        for name in ['k', 'z', 'ells', 'km', 'kr', 'qpar', 'qper', 'fsigma8', 'sigma8', 'sigma8_fid']:
             if name in state: setattr(self, name, state.pop(name))
         from pybird import bird
         self.pt = bird.Bird.__new__(bird.Bird)
@@ -1957,7 +1961,7 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
             params['b4'] = 1. / 2. * b2d - 17. / 6. * b2k
             # 2 * cct / km**2 = b1 * alpha0p, 2 * cr1 / kr**2 = f * alpha2p, 2 * cr2 / kr**2 = f* alpha4p
             alpha0p, alpha2p, alpha4p = [params.pop(name) for name in ['alpha0p', 'alpha2p', 'alpha4p']]
-            f = self.template.f
+            f = self.pt.fsigma8 / self.pt.sigma8
             params['cct'] = km**2 / 2. * alpha0p * b1
             params['cr1'] = kr**2 / 2. * alpha2p * f
             params['cr2'] = kr**2 / 2. * alpha4p * f
@@ -1977,8 +1981,8 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
         return params
 
     def apply_desi_dr2_reparameterization(self, params, direction='backward'):
-        qpar, qper = self.template.qpar, self.template.qper
-        dsigma8 = self.template.sigma8 / self.template.sigma8_fid
+        qpar, qper = self.pt.qpar, self.pt.qper
+        dsigma8 = self.pt.sigma8 / self.pt.sigma8_fid
 
         Aap, S = 1. / (qpar * qper**2), dsigma8
         if direction == 'backward':
@@ -2081,6 +2085,10 @@ class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
         if self.options['with_ap']:
             self.projection.AP(self.pt, q=(self.template.qper, self.template.qpar))
         self.projection.xdata(self.pt)
+        self.qper, self.qpar = self.template.qper, self.template.qpar
+        self.fsigma8 = self.template.fsigma8
+        self.sigma8 = self.template.sigma8
+        self.sigma8_fid = self.template.sigma8_fid
 
     def combine_bias_terms_poles(self, params, nd=1e-4):
         from pybird import bird
@@ -2092,7 +2100,7 @@ class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
 
     def __getstate__(self):
         state = {}
-        for name in ['s', 'z', 'ells']:
+        for name in ['s', 'z', 'ells', 'qper', 'qpar', 'fsigma8', 'sigma8', 'sigma8_fid']:
             if hasattr(self, name):
                 state[name] = getattr(self, name)
         for name in self._pt_attrs:
@@ -2101,7 +2109,7 @@ class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
         return state
 
     def __setstate__(self, state):
-        for name in ['s', 'z', 'ells']:
+        for name in ['s', 'z', 'ells', 'qper', 'qpar', 'fsigma8', 'sigma8', 'sigma8_fid']:
             if name in state: setattr(self, name, state.pop(name))
         from pybird import bird
         self.pt = bird.Bird.__new__(bird.Bird)
