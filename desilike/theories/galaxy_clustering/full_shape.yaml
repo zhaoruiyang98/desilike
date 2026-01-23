@@ -974,7 +974,7 @@ params:
       limits: [-15., 15.]
     ref:
       limits: [-1., 1.]
-    latex: 'b_\mathrm{td}'
+    latex: 'b_{td}'
   alpha0p:
     prior:
       dist: norm
@@ -1174,7 +1174,7 @@ params:
       limits: [-15., 15.]
     ref:
       limits: [-1., 1.]
-    latex: 'b_\mathrm{td}'
+    latex: 'b_{td}'
   alpha0p:
     prior:
       dist: norm
