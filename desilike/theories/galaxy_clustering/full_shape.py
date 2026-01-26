@@ -1955,6 +1955,8 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
             if self.options['freedom'] == 'desi-dr2-min':
                 b2k = -2. / 7. * (b1 - 1.)
                 b3td = 23. / 42. * (b1 - 1.)
+            if self.options['freedom'] == 'desi-dr2-int':
+                b3td = 23. / 42. * (b1 - 1.)
             params['b1'] = b1
             params['b2'] = b1 + 7. / 2. * b2k
             params['b3'] = b1 + 15. * b2k + 6. * b3td
