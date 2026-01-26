@@ -1886,8 +1886,12 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
             for name, value in settings.items():
                 if self.options[name] is None:
                     self.options[name] = value
+            if utils.is_sequence(self.options['fsat']):
+                self.options['fsat'] = np.sqrt(np.prod(self.options['fsat']))
+            if utils.is_sequence(self.options['sigv']):
+                self.options['sigv'] = np.sqrt(np.prod(self.options['sigv']))
             if self.mpicomm.rank == 0:
-                self.log_debug('Using fsat, sigv = {}, {}'.format(self.options['fsat'], self.options['sigv']))
+                self.log_debug('Using fsat, sigv = {:.3f}, {:.3f}'.format(self.options['fsat'], self.options['sigv']))
             self.fsat = self.options['fsat']
         if freedom == 'min' and self.options['eft_basis'] != 'eftoflss':
             raise ValueError('freedom = "min" only defined in eft_basis = "eftoflss"')
