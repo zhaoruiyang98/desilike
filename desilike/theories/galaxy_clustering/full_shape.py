@@ -1646,6 +1646,12 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
     def initialize(self, *args, **kwargs):
         super(PyBirdPowerSpectrumMultipoles, self).initialize(*args, **kwargs)
         # self.co is fixed, so we can just export it in __getstate__
+        is_jaxbird = False
+        try:
+            from pybird.config import set_jax_enabled
+            is_jaxbird = True
+        except ImportError:
+            pass
         from pybird.common import Common
         from pybird.nonlinear import NonLinear
         from pybird.nnlo import NNLO_counterterm
@@ -1671,7 +1677,8 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
         #                 eft_basis=eft_basis, halohalo=True, with_cf=False,
         #                 with_time=True, accboost=float(self.options['accboost']), optiresum=self.options['with_resum'] == 'opti',
         #                 exact_time=False, quintessence=False, with_tidal_alignments=False, nonequaltime=False, keep_loop_pieces_independent=False))
-        self.nonlinear = NonLinear(load=False, save=False, NFFT=256 * int(self.options['fftaccboost']), fftbias=self.options['fftbias'], co=self.co)
+        nonlinear_kwargs = dict(load_matrix=False, save_matrix=False) if is_jaxbird else dict(load=False, save=False)
+        self.nonlinear = NonLinear(**nonlinear_kwargs, NFFT=256 * int(self.options['fftaccboost']), fftbias=self.options['fftbias'], co=self.co)
         #print(dict(load=False, save=False, NFFT=256 * int(self.options['fftaccboost']), fftbias=self.options['fftbias'], co=self.co))
         self.resum = Resum(co=self.co)
         self.nnlo_counterterm = None
@@ -2043,6 +2050,12 @@ class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
 
     def initialize(self, *args, **kwargs):
         super(PyBirdCorrelationFunctionMultipoles, self).initialize(*args, **kwargs)
+        is_jaxbird = False
+        try:
+            from pybird.config import set_jax_enabled
+            is_jaxbird = True
+        except ImportError:
+            pass
         from pybird.common import Common
         from pybird.nonlinear import NonLinear
         from pybird.nnlo import NNLO_counterterm
@@ -2063,7 +2076,8 @@ class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
         #                 eft_basis=eft_basis, halohalo=True, with_cf=True,
         #                 with_time=True, accboost=float(self.options['accboost']), optiresum=self.options['with_resum'] == 'opti', with_uvmatch=False,
         #                 exact_time=False, quintessence=False, with_tidal_alignments=False, nonequaltime=False, keep_loop_pieces_independent=False))
-        self.nonlinear = NonLinear(load=False, save=False, NFFT=256 * int(self.options['fftaccboost']), fftbias=self.options['fftbias'], co=self.co)  # NFFT=256, fftbias=-1.6
+        nonlinear_kwargs = dict(load_matrix=False, save_matrix=False) if is_jaxbird else dict(load=False, save=False)
+        self.nonlinear = NonLinear(**nonlinear_kwargs, NFFT=256 * int(self.options['fftaccboost']), fftbias=self.options['fftbias'], co=self.co)
         #print(dict(load=False, save=False, NFFT=256 * int(self.options['fftaccboost']), fftbias=self.options['fftbias'], co=self.co))
         self.resum = Resum(co=self.co)  # LambdaIR=.2, NFFT=192
         self.nnlo_counterterm = None
