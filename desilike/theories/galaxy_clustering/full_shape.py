@@ -1649,6 +1649,7 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
         is_jaxbird = False
         try:
             from pybird.config import set_jax_enabled
+            set_jax_enabled(False)
             is_jaxbird = True
         except ImportError:
             pass
@@ -1742,7 +1743,7 @@ class PyBirdPowerSpectrumMultipoles(BasePTPowerSpectrumMultipoles):
         if bird.eft_basis in ["eftoflss", "westcoast"]:
             bct = jnp.array([b1X * b5Y + b1Y * b5X, b1Y * b6X + b1X * b6Y, b1Y * b7X + b1X * b7Y, (b5X + b5Y) * f, (b6X + b6Y) * f, (b7X + b7Y) * f])
         elif bird.eft_basis == 'eastcoast':
-            bct = - np.array([ct0X + ct0Y, f * (ct2X + ct2Y), f**2 * (ct4X + ct4Y)])
+            bct = - jnp.array([ct0X + ct0Y, f * (ct2X + ct2Y), f**2 * (ct4X + ct4Y)])
         if bird.with_nnlo_counterterm:
             raise NotImplementedError("PyBird cross-power spectrum with nnlo counterterm is not implemented yet.")
         #     if bird.eft_basis in ["eftoflss", "westcoast"]: cnnlo = 0.25 * jnp.array([b1X**2 * biasX["cr4"], b1X * biasX["cr6"]]) / kr[0]**4
@@ -1943,6 +1944,11 @@ class PyBirdTracerPowerSpectrumMultipoles(BaseTracerPowerSpectrumMultipoles):
         if 2 not in self.ells: fix += ['cr1', 'c2', 'alpha2p', 'ce2', 'sn2p']
         for param in self.init.params.select(basename=fix):
             param.update(value=0., fixed=True)
+        try:
+            from pybird.config import set_jax_enabled
+            set_jax_enabled(True)
+        except ImportError:
+            pass
 
     def transform_params(self, km=None, kr=None, **params):
         if self.options['eft_basis'] == 'westcoast':
@@ -2054,6 +2060,7 @@ class PyBirdCorrelationFunctionMultipoles(BasePTCorrelationFunctionMultipoles):
         try:
             from pybird.config import set_jax_enabled
             is_jaxbird = True
+            set_jax_enabled(False)
         except ImportError:
             pass
         from pybird.common import Common
